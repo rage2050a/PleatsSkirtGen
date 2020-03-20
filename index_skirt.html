@@ -25,6 +25,7 @@ http://creativecommons.org/publicdomain/zero/1.0/deed.ja
     丈長さ: <input name="丈長さ" type="number" id="skirtHeight" min="1" max="9999" value="430"><br>
     プリーツ数: <input name="プリーツ数" type="number" id="numPleats" min="2" max="9999" value="4"><br>
     陰プリーツ率: <input name="陰プリーツ率" type="number" id="pleatsRatio" min="0.01" max="0.9" value="0.25" step="0.01"><br>
+    ベルト幅: <input name="ベルト幅" type="number" id="beltHeight" min="0" max="9999" value="20"><br>
   </p>
   <p>
     <input type="button" name="generateButton" value="生成" onclick="OnGenerateButton()">
@@ -262,36 +263,42 @@ function GenerateMain(p) {
   var d_theta_ab = p.Theta / (p.N * (1 + p.Alpha) );
   var d_theta_bc = p.Alpha * d_theta_ab;
 
-  //TODO: 用紙節約のため、スカート部を2つの部品で構成する。
+  //用紙節約のため、スカート部を2つの部品で構成する。
+  //それぞれの部品のプリーツ数
   var n1 = Math.floor( p.N / 2 );
   var n2 = p.N - n1;
 
   //のりしろ+余白のぶん、円の中心を右下にずらす
   cx += p.BC * 2;
   cy += p.BC * 2;
-  DrawTabForSticking(p, cx, cy);
-  
-  var d_theta = p.Theta * n1 / p.N;
-  DrawArc( cx, cy, p.R, -Math.PI/2, -Math.PI/2 + p.Theta  );
-  DrawArc( cx, cy, p.R + p.H, -Math.PI/2, -Math.PI/2 + p.Theta  );
 
-  var divnum = p.N;
-  //var divnum = n1;
-  for (var i=0; i<=divnum; i++) {
-    var angle = -Math.PI/2 + (p.Theta / divnum) * i;
-    var x1 = cx + Math.cos(angle) * p.R;
-    var y1 = cy + Math.sin(angle) * p.R;
-    var x2 = x1 + Math.cos(angle) * p.H;
-    var y2 = y1 + Math.sin(angle) * p.H;
-    DrawLine( x1, y1, x2, y2, (i==divnum) ? 0 : 2 );
-    if (i < divnum) {
-      var angle2 = angle + d_theta_bc;
-      var x3 = cx + Math.cos(angle2) * p.R;
-      var y3 = cy + Math.sin(angle2) * p.R;
-      var x4 = x3 + Math.cos(angle2) * p.H;
-      var y4 = y3 + Math.sin(angle2) * p.H;
-      DrawLine( x3, y3, x4, y4, 1 );
+  //スカート部の描画
+  for (var part=0; part<2; part++) {
+    DrawTabForSticking(p, cx, cy);
+    
+    var divnum = (part==0 ? n1 : n2);
+    var part_theta = p.Theta * divnum / p.N;
+    DrawArc( cx, cy, p.R, -Math.PI/2, -Math.PI/2 + part_theta  );
+    DrawArc( cx, cy, p.R + p.H, -Math.PI/2, -Math.PI/2 + part_theta  );
+
+    for (var i=0; i<=divnum; i++) {
+      var angle = -Math.PI/2 + (part_theta / divnum) * i;
+      var x1 = cx + Math.cos(angle) * p.R;
+      var y1 = cy + Math.sin(angle) * p.R;
+      var x2 = x1 + Math.cos(angle) * p.H;
+      var y2 = y1 + Math.sin(angle) * p.H;
+      DrawLine( x1, y1, x2, y2, (i==divnum) ? 0 : 2 );
+      if (i < divnum) {
+        var angle2 = angle + d_theta_bc;
+        var x3 = cx + Math.cos(angle2) * p.R;
+        var y3 = cy + Math.sin(angle2) * p.R;
+        var x4 = x3 + Math.cos(angle2) * p.H;
+        var y4 = y3 + Math.sin(angle2) * p.H;
+        DrawLine( x3, y3, x4, y4, 1 );
+      }
     }
+    // 部品の高さ+余白だけ、下にずらす
+    cy += p.H + p.R * (1 - Math.cos(part_theta)) + p.BC;
   }
 
 /*
