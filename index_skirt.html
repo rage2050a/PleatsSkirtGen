@@ -20,18 +20,18 @@ http://creativecommons.org/publicdomain/zero/1.0/deed.ja
     <input type="radio" name="pleatsType" value="BoxPleats">箱ヒダ
   </p -->
   <p>
-    ウエスト: <input type="number" id="waistCirc" min="1" max="9999" value="300"><br>
-    すそ周: <input type="number" id="bottomCirc" min="1" max="9999" value="320"><br>
-    丈長さ: <input type="number" id="skirtHeight" min="1" max="9999" value="430"><br>
-    プリーツ数: <input type="number" id="numPleats" min="2" max="9999" value="4"><br>
-    陰プリーツ率: <input type="number" id="pleatsRatio" min="0.01" max="0.9" value="0.25"><br>
+    ウエスト: <input name="ウエスト" type="number" id="waistCirc" min="1" max="9999" value="300"><br>
+    すそ周: <input name="すそ周" type="number" id="bottomCirc" min="1" max="9999" value="320"><br>
+    丈長さ: <input name="丈長さ" type="number" id="skirtHeight" min="1" max="9999" value="430"><br>
+    プリーツ数: <input name="プリーツ数" type="number" id="numPleats" min="2" max="9999" value="4"><br>
+    陰プリーツ率: <input name="陰プリーツ率" type="number" id="pleatsRatio" min="0.01" max="0.9" value="0.25" step="0.01"><br>
   </p>
   <p>
     <input type="button" name="generateButton" value="生成" onclick="OnGenerateButton()">
   </p>
 </form>
 <div id="theDebug">debug</div>
-<canvas id="theCanvas" width="200" height="2480"></canvas><br>
+<canvas id="theCanvas" width="2000" height="2480"></canvas><br>
 <img id="theImage">
 
 <script>
@@ -68,12 +68,31 @@ var g_DrawMode = 0;
 ///作図に必要な範囲。g_DrawMode=0で描画関数を呼ぶたびに更新される。
 var g_MinX, g_MinY, g_MaxX, g_MaxY;
 
+function ClearMinMax() {
+  g_MinX = g_MinY = 9999;
+  g_MaxX = g_MaxY = -9999;
+}
+
+function DumpMinMax() {
+  console.log(g_MinX, g_MinY, g_MaxX, g_MaxY);
+}
+
+/// 点(x,y) で作図範囲 g_Min[XY], g_Max[XY] を更新
+function AddToMinMax(x, y) {
+    g_MinX = Math.min(g_MinX, x);
+    g_MinY = Math.min(g_MinY, y);
+    g_MaxX = Math.max(g_MaxX, x);
+    g_MaxY = Math.max(g_MaxY, y);
+}
+
+function AddToMinMaxRect(x, y, w, h) {
+    AddToMinMax(x, y);
+    AddToMinMax(x+w, y+h);
+}
+
 function FillRect(x, y, w, h, style) {
   if (g_DrawMode==0) {
-    g_MinX = Math.min(g_MinX, x, x+w);
-    g_MinY = Math.min(g_MinY, y, y+h);
-    g_MaxX = Math.max(g_MaxX, x, x+w);
-    g_MaxY = Math.max(g_MaxY, y, y+h);
+    AddToMinMaxRect(x, y, w, h);
   }
   else {
     var theCanvas = document.getElementById("theCanvas");
@@ -93,10 +112,7 @@ function DrawText(s, x, y) {
   if (g_DrawMode==0) {
     var w = s.length * PX;
     var h = PX;
-    g_MinX = Math.min(g_MinX, x, x+w);
-    g_MinY = Math.min(g_MinY, y, y+h);
-    g_MaxX = Math.max(g_MaxX, x, x+w);
-    g_MaxY = Math.max(g_MaxY, y, y+h);
+    AddToMinMaxRect(x, y, w, h);
   }
   else {
     var theCanvas = document.getElementById("theCanvas");
@@ -111,13 +127,25 @@ function DrawText(s, x, y) {
 function DrawArc(x, y, r, angle1, angle2, ccw) {
   if (g_DrawMode==0) {
     //角度を少しずつ動かしながら位置を求める
-    //TODO
     var a1 = NormalizeRadian(angle1);
     var a2 = NormalizeRadian(angle2);
-//    g_MinX = Math.min(g_MinX, x, x+w);
-//    g_MinY = Math.min(g_MinY, y, y+h);
-//    g_MaxX = Math.max(g_MaxX, x, x+w);
-//    g_MaxY = Math.max(g_MaxY, y, y+h);
+    if (!ccw) {
+      // 時計回りなら、角度を増やす方向 (a1 < a2)
+      while (!(a1 < a2)) a2 += 2 * Math.PI;
+    }
+    else {
+      // 反時計周りなら、角度を減らす方向 (a2 < a1)
+      while (!(a2 < a1)) a2 -= 2 * Math.PI; 
+    }
+    // 角度 a1 から a2 まで線形補間
+    var n = r;
+    for (var i=0; i<=n; i++) {
+      var t = i / n; // 媒介変数
+      var a = (1-t) * a1 + t * a2;
+      var px = x + r * Math.cos(a);
+      var py = y + r * Math.sin(a);
+      AddToMinMax(px, py);
+    }
   }
   else {
     var theCanvas = document.getElementById("theCanvas");
@@ -133,28 +161,34 @@ function DrawArc(x, y, r, angle1, angle2, ccw) {
 
 /// @param dash 0=実線, 1=山折り, 2=谷折り
 function DrawLine(x1, y1, x2, y2, dash) {
-  var theCanvas = document.getElementById("theCanvas");
-  var context = theCanvas.getContext("2d");
-  context.strokeStyle = "black";
-  context.lineWidth = 1;
-  switch (dash) {
-  default:
-    context.setLineDash([]);
-    break;
-  case 1:
-    context.setLineDash([12, 4, 4, 4, 4, 4]);
-    break;
-  case 2:
-    context.setLineDash([8, 8]);
-    break;
-
+  if (g_DrawMode==0) {
+    AddToMinMax(x1, y1);
+    AddToMinMax(x2, y2);
   }
-  context.beginPath();
-  context.moveTo(x1, y1);
-  context.lineTo(x2, y2);
-  context.stroke();
-  context.closePath();
-  context.setLineDash([]);
+  else {
+    var theCanvas = document.getElementById("theCanvas");
+    var context = theCanvas.getContext("2d");
+    context.strokeStyle = "black";
+    context.lineWidth = 1;
+    switch (dash) {
+    default:
+      context.setLineDash([]);
+      break;
+    case 1:
+      context.setLineDash([12, 4, 4, 4, 4, 4]);
+      break;
+    case 2:
+      context.setLineDash([8, 8]);
+      break;
+
+    }
+    context.beginPath();
+    context.moveTo(x1, y1);
+    context.lineTo(x2, y2);
+    context.stroke();
+    context.closePath();
+    context.setLineDash([]);
+  }
 }
 
 function OnTest1() {
@@ -163,14 +197,24 @@ function OnTest1() {
   FillRect(0, 0, 100, 100, "#ff0000")
 }
 
- 
+/// id要素のvalueをfloatで返す。無理ならthrow
+function GetFloat(id) {
+  var str = document.getElementById(id).value;
+  var ret = parseFloat(str);
+  if (Number.isNaN(ret)) {
+    var text = document.getElementById(id).name;
+    throw text+" に数値が入力されていません。";
+  }
+  return ret;
+}
+
 function GetParams() {
   var ret = {};
-  ret.L1 = parseFloat(document.getElementById("waistCirc").value);
-  ret.L2 = parseFloat(document.getElementById("bottomCirc").value);
-  ret.H = parseFloat(document.getElementById("skirtHeight").value);
-  ret.N = parseFloat(document.getElementById("numPleats").value);
-  ret.Alpha = parseFloat(document.getElementById("pleatsRatio").value);
+  ret.L1 = GetFloat("waistCirc");
+  ret.L2 = GetFloat("bottomCirc");
+  ret.H = GetFloat("skirtHeight");
+  ret.N = GetFloat("numPleats");
+  ret.Alpha = GetFloat("pleatsRatio");
   //入力をもとに、従属する値を求める
   ret.AB = ret.L1 / ( (1 - ret.Alpha) * ret.N );
   ret.BC = ret.Alpha * ret.AB;
@@ -188,37 +232,59 @@ function GetParams() {
   return ret;
 }
 
+/// のりしろを描画
+function DrawTabForSticking(p, cx, cy) {
+  var px, py, qx, qy;
+  px = cx;
+  py = cy-(p.R+p.H);
+  //のりしろの幅は陰プリーツBCと同じ(もっと大きくてもよい)
+  qx = px - p.BC;
+  qy = py + p.BC;
+  DrawLine( px, py, qx, qy );
+  px = qx;
+  py = qy;
+  qy = cy - p.R - p.BC;
+  DrawLine( px, py, qx, qy );
+  px = qx;
+  py = qy;
+  qx = cx;
+  qy = cy - p.R;
+  DrawLine( px, py, qx, qy );
+}
 
 
-function OnGenerateButton() {
-  PrintDebug("Generate");
-  var p = GetParams();
-  PrintDebug(p.toString());
-
-  ClearCanvas();
-  g_DrawMode = 1;
-  DrawArc( 100, 100, 80, 0.0, -0.9 );
-  return;
-
+function GenerateMain(p) {
   //円の中心位置を求める
-  var cx = 0;//TODO: のりしろのぶん右へ
+  var cx = 0;
   var cy = p.H + p.R;
   console.log("cx="+cx +", cy="+cy);
   //AB, BC に対する角度
-  var d_theta_ab = (1 + p.Alpha) * p.Theta / p.N;
+  var d_theta_ab = p.Theta / (p.N * (1 + p.Alpha) );
   var d_theta_bc = p.Alpha * d_theta_ab;
 
+  //TODO: 用紙節約のため、スカート部を2つの部品で構成する。
+  var n1 = Math.floor( p.N / 2 );
+  var n2 = p.N - n1;
+
+  //のりしろ+余白のぶん、円の中心を右下にずらす
+  cx += p.BC * 2;
+  cy += p.BC * 2;
+  DrawTabForSticking(p, cx, cy);
+  
+  var d_theta = p.Theta * n1 / p.N;
   DrawArc( cx, cy, p.R, -Math.PI/2, -Math.PI/2 + p.Theta  );
   DrawArc( cx, cy, p.R + p.H, -Math.PI/2, -Math.PI/2 + p.Theta  );
 
-  for (var i=0; i<=p.N; i++) {
-    var angle = -Math.PI/2 + (p.Theta / p.N) * i;
+  var divnum = p.N;
+  //var divnum = n1;
+  for (var i=0; i<=divnum; i++) {
+    var angle = -Math.PI/2 + (p.Theta / divnum) * i;
     var x1 = cx + Math.cos(angle) * p.R;
     var y1 = cy + Math.sin(angle) * p.R;
     var x2 = x1 + Math.cos(angle) * p.H;
     var y2 = y1 + Math.sin(angle) * p.H;
-    DrawLine( x1, y1, x2, y2, (i==p.N) ? 0 : 2 );
-    if (i < p.N) {
+    DrawLine( x1, y1, x2, y2, (i==divnum) ? 0 : 2 );
+    if (i < divnum) {
       var angle2 = angle + d_theta_bc;
       var x3 = cx + Math.cos(angle2) * p.R;
       var y3 = cy + Math.sin(angle2) * p.R;
@@ -228,12 +294,33 @@ function OnGenerateButton() {
     }
   }
 
-//  ConvertCanvasToImage();
+/*
 
   DrawLine(0,100, 400, 100, 1);
   DrawText("山折り", 400, 90);
   DrawLine(0,140, 400, 140, 2);
   DrawText("谷折り", 400, 130);
+*/
+}
+
+
+function OnGenerateButton() {
+  PrintDebug("Generate");
+  try {
+    var p = GetParams();
+    PrintDebug(p.toString());
+
+    ClearCanvas();
+    ClearMinMax();
+    for (g_DrawMode=0; g_DrawMode<=1; g_DrawMode++) {
+      GenerateMain(p);
+    }
+
+  //  ConvertCanvasToImage();
+  }
+  catch (e) {
+    alert(e);
+  }
 }
 
 </script>
