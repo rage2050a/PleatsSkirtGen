@@ -6,11 +6,11 @@ http://creativecommons.org/publicdomain/zero/1.0/deed.ja
 <html>
 <head>
 <meta charset="utf-8"/>
-<title>紙プリーツスカート生成装置</title>
+<title>紙プリーツスカート生成器</title>
 <style>
   #theCanvas {
     border-style: solid;
-/*    visibility: hidden;*/
+    visibility: hidden;
   }
   #theImage {
     border-style: solid;
@@ -18,7 +18,7 @@ http://creativecommons.org/publicdomain/zero/1.0/deed.ja
 </style>
 </head>
 <body>
-<h1>紙プリーツスカート生成装置</h1>
+<h1>紙プリーツスカート生成器</h1>
 <h2>使い方</h2>
 <ol>
   <li>パラメータを入力し、「生成」ボタンを押します。</li>
@@ -40,15 +40,15 @@ http://creativecommons.org/publicdomain/zero/1.0/deed.ja
       </tr>
       <tr>
         <td>すそ周</td>
-        <td><input name="すそ周" type="number" id="bottomCirc" min="1" max="9999" value="320"></td>
+        <td><input name="すそ周" type="number" id="bottomCirc" min="1" max="9999" value="400"></td>
       </tr>
       <tr>
         <td>丈長さ</td>
-        <td><input name="丈長さ" type="number" id="skirtHeight" min="1" max="9999" value="430"></td>
+        <td><input name="丈長さ" type="number" id="skirtHeight" min="1" max="9999" value="200"></td>
       </tr>
       <tr>
         <td>プリーツ数</td>
-        <td><input name="プリーツ数" type="number" id="numPleats" min="2" max="9999" value="4"></td>
+        <td><input name="プリーツ数" type="number" id="numPleats" min="2" max="9999" value="16"></td>
       </tr>
       <tr>
         <td>陰プリーツ率</td>
@@ -69,7 +69,7 @@ http://creativecommons.org/publicdomain/zero/1.0/deed.ja
 <img id="theImage">
 
 <script>
-
+///////////////////////////////////////////////////////////////////////////////
 function PrintDebug(s) {
   var theDebug = document.getElementById("theDebug");
   theDebug.textContent = s;
@@ -228,6 +228,8 @@ function DrawLine(x1, y1, x2, y2, dash) {
   }
 }
 
+
+/// のりしろ描画用。引数は x1, y1, x2, y2, ...
 function FillPolyWithPattern() {
   if (arguments.length % 2 != 0) 
     throw "FillPolyWithPattern args must be even";
@@ -242,10 +244,10 @@ function FillPolyWithPattern() {
     ptncan.width = 8;
     ptncan.height = 8;
     var ptnctx = ptncan.getContext("2d");
-    ptnctx.strokeStyle = "black";
+    ptnctx.strokeStyle = "#888888";
     ptnctx.lineWidth = 1;
     ptnctx.beginPath();
-    for (var i=-ptncan.width; i<ptncan.width; i+=4) {
+    for (var i=-ptncan.width; i<ptncan.width; i+=2) {
       ptnctx.moveTo(i, 0);
       ptnctx.lineTo(i+ptncan.width, ptncan.height);
     }
@@ -271,12 +273,6 @@ function FillPolyWithPattern() {
 
 //////////////////////////////////////////////////////////////////////////////
 
-function OnTest1() {
-  PrintDebug("OnTest1");
-  theCanvas.width = 640;
-  FillRect(0, 0, 100, 100, "#ff0000")
-}
-
 /// id要素のvalueをfloatで返す。無理ならthrow
 function GetFloat(id) {
   var str = document.getElementById(id).value;
@@ -288,6 +284,8 @@ function GetFloat(id) {
   return ret;
 }
 
+
+/// パラメータを取得し、従属する値を計算
 function GetParams() {
   var ret = {};
   ret.L1 = GetFloat("waistCirc");
@@ -321,14 +319,15 @@ function DrawTabForSticking(p, cx, cy) {
   px = cx;
   py = cy-(p.R+p.H);
   fillpts.push(px, py);
-  //のりしろの幅は陰プリーツBCと同じ(もっと大きくてもよい)
-  qx = px - p.BC;
-  qy = py + p.BC;
+  //のりしろの幅は最大でもABまで
+  var tab = p.AB * 0.8;
+  qx = px - tab;
+  qy = py + tab;
   fillpts.push(qx, qy);
   DrawLine( px, py, qx, qy );
   px = qx;
   py = qy;
-  qy = cy - p.R - p.BC;
+  qy = cy - p.R - tab;
   fillpts.push(qx, qy);
   DrawLine( px, py, qx, qy );
   px = qx;
@@ -342,7 +341,8 @@ function DrawTabForSticking(p, cx, cy) {
   FillPolyWithPattern(...fillpts);
 }
 
-/// ベルト部を描画 (長さM1, 幅Bの長方形)
+
+/// ベルト部を描画 (長さL1, 幅Bの長方形)
 // 強度のために高さB*2にして折る。
 function DrawBelt(p, x, y) {
   // スカート部と接着するためののりしろもつける。
@@ -353,7 +353,7 @@ function DrawBelt(p, x, y) {
   //上辺
   px = x;
   py = y;
-  qx = px + p.M1 + tab;
+  qx = px + p.L1 + tab;
   qy = py;
   DrawLine(px, py, qx, qy);
   //右辺
@@ -380,7 +380,7 @@ function DrawBelt(p, x, y) {
   qy = py - p.B*2;
   DrawLine(px, py, qx, qy);
   //右のりしろと本体の区切り
-  px = x + p.M1;
+  px = x + p.L1;
   DrawLine(px, y, px, y+p.B*2, 1);
 
   FillPolyWithPattern(...fillpts);
@@ -396,7 +396,7 @@ function DrawBelt(p, x, y) {
     fillpts.push(qx, qy);
     px = qx;
     py = qy;
-    qx = px + p.M1 / 4 - tab*2;
+    qx = px + p.L1 / 4 - tab*2;
     DrawLine(px, py, qx, qy);
     fillpts.push(qx, qy);
     px = qx;
@@ -412,12 +412,13 @@ function DrawBelt(p, x, y) {
   }
 
   //半分に折る線
-  DrawLine(x, y+p.B, x+p.M1+tab, y+p.B, 1);
+  DrawLine(x, y+p.B, x+p.L1+tab, y+p.B, 1);
 
   return y + p.B*2 + tab;
 }
 
 
+/// 説明
 function DrawInstruction(x, y) {
   DrawLine(x, y, x+200, y, 1);
   DrawText("山折り", x+200, y-8);
@@ -427,9 +428,10 @@ function DrawInstruction(x, y) {
   y += 16;
   FillPolyWithPattern(x, y, x+200, y, x+200, y+16, x, y+16);
   DrawText("のりしろ", x+200, y);
-  
 }
 
+
+/// 主役
 function GenerateMain(p) {
   //円の中心位置を求める
   var cx = 0;
@@ -445,11 +447,12 @@ function GenerateMain(p) {
   var n2 = p.N - n1;
 
   //のりしろ+余白のぶん、円の中心を右下にずらす
-  cx += p.BC * 2;
-  cy += p.BC * 2;
+  var margin = p.AB * 2;
+  cx += margin;
+  cy += margin;
 
   //スカート部の描画
-  var max_y = 0;//ベルト部の位置を決めるため
+  var max_y = 0;//ベルト部の印刷位置を決めるため
   for (var part=0; part<2; part++) {
     DrawTabForSticking(p, cx, cy);
 
@@ -476,6 +479,12 @@ function GenerateMain(p) {
         DrawLine( x3, y3, x4, y4, 1 );
         max_y = Math.max(max_y, y3);
         max_y = Math.max(max_y, y4);
+        //腰まわりののりしろ
+        var x5 = x3 + Math.cos(angle2) * p.BC;
+        var y5 = y3 + Math.sin(angle2) * p.BC;
+        var x6 = x1 + Math.cos(angle) * p.BC;
+        var y6 = y1 + Math.sin(angle) * p.BC;
+        FillPolyWithPattern(x3, y3, x5, y5, x6, y6, x1, y1);
       }
     }
     // 部品の高さ+余白だけ、下にずらす
@@ -486,7 +495,7 @@ function GenerateMain(p) {
   var belt_y = max_y + p.BC * 2;
   var inst_y = DrawBelt(p, cx, belt_y) + p.BC * 4;
 
-  DrawInstruction(p.BC, inst_y);
+  DrawInstruction(margin, inst_y);
 }
 
 
@@ -505,10 +514,10 @@ function OnGenerateButton() {
     //描画範囲が確定したのでCanvasサイズを設定する
     console.log("BBox ", g_MaxX, g_MaxY);
     //余白を追加
-    g_MaxX += p.BC*2;
-    g_MaxY += p.BC;
-    ClearCanvas(g_MaxX, g_MaxY);
+    g_MaxX += p.AB*2;
+    g_MaxY += p.AB;
     g_DrawMode = 1;
+    ClearCanvas(g_MaxX, g_MaxY);
     GenerateMain(p);
 
     ConvertCanvasToImage();
