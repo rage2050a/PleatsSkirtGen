@@ -1,0 +1,241 @@
+<!-- ファイル index_skirt.html -->
+<!--
+This file is licensed under CC0.
+http://creativecommons.org/publicdomain/zero/1.0/deed.ja
+-->
+<html>
+<head>
+<meta charset="utf-8"/>
+<style>
+  #theCanvas {
+    border-style: solid;
+  }
+</style>
+</head>
+<body>
+
+<form id="theForm">
+  <!-- p>
+    <input type="radio" name="pleatsType" value="SawPleats" checked>車ヒダ
+    <input type="radio" name="pleatsType" value="BoxPleats">箱ヒダ
+  </p -->
+  <p>
+    ウエスト: <input type="number" id="waistCirc" min="1" max="9999" value="300"><br>
+    すそ周: <input type="number" id="bottomCirc" min="1" max="9999" value="320"><br>
+    丈長さ: <input type="number" id="skirtHeight" min="1" max="9999" value="430"><br>
+    プリーツ数: <input type="number" id="numPleats" min="2" max="9999" value="4"><br>
+    陰プリーツ率: <input type="number" id="pleatsRatio" min="0.01" max="0.9" value="0.25"><br>
+  </p>
+  <p>
+    <input type="button" name="generateButton" value="生成" onclick="OnGenerateButton()">
+  </p>
+</form>
+<div id="theDebug">debug</div>
+<canvas id="theCanvas" width="200" height="2480"></canvas><br>
+<img id="theImage">
+
+<script>
+
+function PrintDebug(s) {
+  var theDebug = document.getElementById("theDebug");
+  theDebug.textContent = s;
+}
+
+function ConvertCanvasToImage() {
+  var theCanvas = document.getElementById("theCanvas");
+  var png = theCanvas.toDataURL();
+  document.getElementById("theImage").src = png;
+  theCanvas.style = "visibility:hidden; width:0px; height:0px;";
+}
+
+///角度を ±π の範囲に収める
+function NormalizeRadian(r) {
+  var n2 = Math.trunc(r / (2*Math.PI));
+  var q = r - n2 * (2*Math.PI);
+  if (q > Math.PI) {
+    q = -(q - Math.PI);
+  }
+  else if (q < -Math.PI) {
+    q = -(q + Math.PI);
+  }
+  return q;
+}
+
+///作図に必要な範囲を求めるために、2回「描画」する。
+///1回目は g_DrawMode=0 にして範囲だけを求めるダミーモード。
+///2回目は g_DrawMode=1 にして本当に描画する。
+var g_DrawMode = 0;
+///作図に必要な範囲。g_DrawMode=0で描画関数を呼ぶたびに更新される。
+var g_MinX, g_MinY, g_MaxX, g_MaxY;
+
+function FillRect(x, y, w, h, style) {
+  if (g_DrawMode==0) {
+    g_MinX = Math.min(g_MinX, x, x+w);
+    g_MinY = Math.min(g_MinY, y, y+h);
+    g_MaxX = Math.max(g_MaxX, x, x+w);
+    g_MaxY = Math.max(g_MaxY, y, y+h);
+  }
+  else {
+    var theCanvas = document.getElementById("theCanvas");
+    var context = theCanvas.getContext("2d");
+    context.fillStyle = style;
+    context.fillRect(x, y, w, h);
+  }
+}
+  
+function ClearCanvas() {
+  var theCanvas = document.getElementById("theCanvas");
+  FillRect(0, 0, theCanvas.width, theCanvas.height, "#ffffff"); 
+}
+
+function DrawText(s, x, y) {
+  var PX = 16;
+  if (g_DrawMode==0) {
+    var w = s.length * PX;
+    var h = PX;
+    g_MinX = Math.min(g_MinX, x, x+w);
+    g_MinY = Math.min(g_MinY, y, y+h);
+    g_MaxX = Math.max(g_MaxX, x, x+w);
+    g_MaxY = Math.max(g_MaxY, y, y+h);
+  }
+  else {
+    var theCanvas = document.getElementById("theCanvas");
+    var context = theCanvas.getContext("2d");
+    context.strokeStyle = "black";
+    context.font = PX +"px Arial";
+    context.textBaseline = 'top';
+    context.fillText(s, x, y);
+  }
+}
+
+function DrawArc(x, y, r, angle1, angle2, ccw) {
+  if (g_DrawMode==0) {
+    //角度を少しずつ動かしながら位置を求める
+    //TODO
+    var a1 = NormalizeRadian(angle1);
+    var a2 = NormalizeRadian(angle2);
+//    g_MinX = Math.min(g_MinX, x, x+w);
+//    g_MinY = Math.min(g_MinY, y, y+h);
+//    g_MaxX = Math.max(g_MaxX, x, x+w);
+//    g_MaxY = Math.max(g_MaxY, y, y+h);
+  }
+  else {
+    var theCanvas = document.getElementById("theCanvas");
+    var context = theCanvas.getContext("2d");
+    context.strokeStyle = "black";
+    context.lineWidth = 1;
+    context.beginPath();
+    context.arc(x, y, r, angle1, angle2, ccw);
+    context.stroke();
+    context.closePath();
+  }
+}
+
+/// @param dash 0=実線, 1=山折り, 2=谷折り
+function DrawLine(x1, y1, x2, y2, dash) {
+  var theCanvas = document.getElementById("theCanvas");
+  var context = theCanvas.getContext("2d");
+  context.strokeStyle = "black";
+  context.lineWidth = 1;
+  switch (dash) {
+  default:
+    context.setLineDash([]);
+    break;
+  case 1:
+    context.setLineDash([12, 4, 4, 4, 4, 4]);
+    break;
+  case 2:
+    context.setLineDash([8, 8]);
+    break;
+
+  }
+  context.beginPath();
+  context.moveTo(x1, y1);
+  context.lineTo(x2, y2);
+  context.stroke();
+  context.closePath();
+  context.setLineDash([]);
+}
+
+function OnTest1() {
+  PrintDebug("OnTest1");
+  theCanvas.width = 640;
+  FillRect(0, 0, 100, 100, "#ff0000")
+}
+
+ 
+function GetParams() {
+  var ret = {};
+  ret.L1 = parseFloat(document.getElementById("waistCirc").value);
+  ret.L2 = parseFloat(document.getElementById("bottomCirc").value);
+  ret.H = parseFloat(document.getElementById("skirtHeight").value);
+  ret.N = parseFloat(document.getElementById("numPleats").value);
+  ret.Alpha = parseFloat(document.getElementById("pleatsRatio").value);
+  //入力をもとに、従属する値を求める
+  ret.AB = ret.L1 / ( (1 - ret.Alpha) * ret.N );
+  ret.BC = ret.Alpha * ret.AB;
+  ret.DE = ret.L2 / ( (1 - ret.Alpha) * ret.N );
+  ret.EF = ret.Alpha * ret.DE;
+  ret.M1 = ret.N * (ret.AB + ret.BC);
+  ret.M2 = ret.N * (ret.DE + ret.EF);
+  ret.R = (ret.M1 * ret.H) / (ret.M2 - ret.M1);
+  ret.Theta = (ret.M2 - ret.M1) / ret.H;
+  ret.toString = function() {
+    return "L1="+this.L1 +", L2="+this.L2 +", H="+this.H +", N="+this.N +", α="+this.Alpha
+      + ", AB="+this.AB +", BC="+this.BC +", DE="+this.DE +", EF="+this.EF
+      + ", M1="+this.M1 +", M2="+this.M2 +", R="+this.R +", θ="+this.Theta;
+  };
+  return ret;
+}
+
+
+
+function OnGenerateButton() {
+  PrintDebug("Generate");
+  var p = GetParams();
+  PrintDebug(p.toString());
+
+  ClearCanvas();
+  g_DrawMode = 1;
+  DrawArc( 100, 100, 80, 0.0, -0.9 );
+  return;
+
+  //円の中心位置を求める
+  var cx = 0;//TODO: のりしろのぶん右へ
+  var cy = p.H + p.R;
+  console.log("cx="+cx +", cy="+cy);
+  //AB, BC に対する角度
+  var d_theta_ab = (1 + p.Alpha) * p.Theta / p.N;
+  var d_theta_bc = p.Alpha * d_theta_ab;
+
+  DrawArc( cx, cy, p.R, -Math.PI/2, -Math.PI/2 + p.Theta  );
+  DrawArc( cx, cy, p.R + p.H, -Math.PI/2, -Math.PI/2 + p.Theta  );
+
+  for (var i=0; i<=p.N; i++) {
+    var angle = -Math.PI/2 + (p.Theta / p.N) * i;
+    var x1 = cx + Math.cos(angle) * p.R;
+    var y1 = cy + Math.sin(angle) * p.R;
+    var x2 = x1 + Math.cos(angle) * p.H;
+    var y2 = y1 + Math.sin(angle) * p.H;
+    DrawLine( x1, y1, x2, y2, (i==p.N) ? 0 : 2 );
+    if (i < p.N) {
+      var angle2 = angle + d_theta_bc;
+      var x3 = cx + Math.cos(angle2) * p.R;
+      var y3 = cy + Math.sin(angle2) * p.R;
+      var x4 = x3 + Math.cos(angle2) * p.H;
+      var y4 = y3 + Math.sin(angle2) * p.H;
+      DrawLine( x3, y3, x4, y4, 1 );
+    }
+  }
+
+//  ConvertCanvasToImage();
+
+  DrawLine(0,100, 400, 100, 1);
+  DrawText("山折り", 400, 90);
+  DrawLine(0,140, 400, 140, 2);
+  DrawText("谷折り", 400, 130);
+}
+
+</script>
+  
+</body></html>
