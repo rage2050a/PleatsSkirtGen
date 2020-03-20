@@ -6,14 +6,27 @@ http://creativecommons.org/publicdomain/zero/1.0/deed.ja
 <html>
 <head>
 <meta charset="utf-8"/>
+<title>紙プリーツスカート生成装置</title>
 <style>
   #theCanvas {
+    border-style: solid;
+/*    visibility: hidden;*/
+  }
+  #theImage {
     border-style: solid;
   }
 </style>
 </head>
 <body>
+<h1>紙プリーツスカート生成装置</h1>
+<h2>使い方</h2>
+<ol>
+  <li>パラメータを入力し、「生成」ボタンを押します。</li>
+  <li>ページ下に表示された画像を保存し、印刷します。</li>
+  <li>切り抜いて組み立てます。</li>
+</ol>
 
+<h2>パラメータ</h2>
 <form id="theForm">
   <!-- p>
     <input type="radio" name="pleatsType" value="SawPleats" checked>車ヒダ
@@ -119,13 +132,16 @@ function FillRect(x, y, w, h, style) {
     var theCanvas = document.getElementById("theCanvas");
     var context = theCanvas.getContext("2d");
     context.fillStyle = style;
+
     context.fillRect(x, y, w, h);
   }
 }
-  
-function ClearCanvas() {
+
+function ClearCanvas(w, h) {
   var theCanvas = document.getElementById("theCanvas");
-  FillRect(0, 0, theCanvas.width, theCanvas.height, "#ffffff"); 
+  theCanvas.width = w;
+  theCanvas.height = h;
+  FillRect(0, 0, w, h, "#ffffff");
 }
 
 function DrawText(s, x, y) {
@@ -156,7 +172,7 @@ function DrawArc(x, y, r, angle1, angle2, ccw) {
     }
     else {
       // 反時計周りなら、角度を減らす方向 (a2 < a1)
-      while (!(a2 < a1)) a2 -= 2 * Math.PI; 
+      while (!(a2 < a1)) a2 -= 2 * Math.PI;
     }
     // 角度 a1 から a2 まで線形補間
     var n = r;
@@ -212,6 +228,49 @@ function DrawLine(x1, y1, x2, y2, dash) {
   }
 }
 
+function FillPolyWithPattern() {
+  if (arguments.length % 2 != 0) 
+    throw "FillPolyWithPattern args must be even";
+  
+  if (g_DrawMode==0) {
+    for (var i=0; i<arguments.length; i+=2) {
+      AddToMinMax(arguments[i], arguments[i+1]);
+    }
+  }
+  else {
+    var ptncan = document.createElement("canvas");
+    ptncan.width = 8;
+    ptncan.height = 8;
+    var ptnctx = ptncan.getContext("2d");
+    ptnctx.strokeStyle = "black";
+    ptnctx.lineWidth = 1;
+    ptnctx.beginPath();
+    for (var i=-ptncan.width; i<ptncan.width; i+=4) {
+      ptnctx.moveTo(i, 0);
+      ptnctx.lineTo(i+ptncan.width, ptncan.height);
+    }
+    ptnctx.stroke();
+    ptnctx.closePath();
+
+    var theCanvas = document.getElementById("theCanvas");
+    theCanvas.style.visibility = "visible";
+    var context = theCanvas.getContext("2d");
+    var pattern = context.createPattern(ptncan, "repeat");
+    context.fillStyle = pattern;
+
+    context.beginPath();
+    context.moveTo(arguments[0], arguments[1]);
+    for (var i=2; i<arguments.length; i+=2) {
+      context.lineTo(arguments[i], arguments[i+1]);
+    }
+    context.closePath();
+    context.fill();
+    context.fillStyle = "black";
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
 function OnTest1() {
   PrintDebug("OnTest1");
   theCanvas.width = 640;
@@ -236,6 +295,7 @@ function GetParams() {
   ret.H = GetFloat("skirtHeight");
   ret.N = GetFloat("numPleats");
   ret.Alpha = GetFloat("pleatsRatio");
+  ret.B = GetFloat("beltHeight");
   //入力をもとに、従属する値を求める
   ret.AB = ret.L1 / ( (1 - ret.Alpha) * ret.N );
   ret.BC = ret.Alpha * ret.AB;
@@ -246,33 +306,129 @@ function GetParams() {
   ret.R = (ret.M1 * ret.H) / (ret.M2 - ret.M1);
   ret.Theta = (ret.M2 - ret.M1) / ret.H;
   ret.toString = function() {
-    return "L1="+this.L1 +", L2="+this.L2 +", H="+this.H +", N="+this.N +", α="+this.Alpha
+    return "L1="+this.L1 +", L2="+this.L2 +", H="+this.H
+      + ", N="+this.N +", α="+this.Alpha +", B="+this.B
       + ", AB="+this.AB +", BC="+this.BC +", DE="+this.DE +", EF="+this.EF
       + ", M1="+this.M1 +", M2="+this.M2 +", R="+this.R +", θ="+this.Theta;
   };
   return ret;
 }
 
-/// のりしろを描画
+/// スカート部ののりしろを描画
 function DrawTabForSticking(p, cx, cy) {
+  var fillpts = [];//塗り用
   var px, py, qx, qy;
   px = cx;
   py = cy-(p.R+p.H);
+  fillpts.push(px, py);
   //のりしろの幅は陰プリーツBCと同じ(もっと大きくてもよい)
   qx = px - p.BC;
   qy = py + p.BC;
+  fillpts.push(qx, qy);
   DrawLine( px, py, qx, qy );
   px = qx;
   py = qy;
   qy = cy - p.R - p.BC;
+  fillpts.push(qx, qy);
   DrawLine( px, py, qx, qy );
   px = qx;
   py = qy;
   qx = cx;
   qy = cy - p.R;
+  fillpts.push(qx, qy);
   DrawLine( px, py, qx, qy );
+
+  //塗り
+  FillPolyWithPattern(...fillpts);
 }
 
+/// ベルト部を描画 (長さM1, 幅Bの長方形)
+// 強度のために高さB*2にして折る。
+function DrawBelt(p, x, y) {
+  // スカート部と接着するためののりしろもつける。
+  var tab = p.B;
+
+  var fillpts = [];
+  var px, py, qx, qy;
+  //上辺
+  px = x;
+  py = y;
+  qx = px + p.M1 + tab;
+  qy = py;
+  DrawLine(px, py, qx, qy);
+  //右辺
+  px = qx;
+  py = qy;
+  qy = py + p.B*2;
+  DrawLine(px, py, qx, qy);
+  fillpts.push(px, py, qx, qy);
+  //右のりしろ端
+  px = qx;
+  py = qy;
+  qx = px - tab;
+  DrawLine(px, py, qx, qy);
+  fillpts.push(qx, qy);
+  fillpts.push(qx, qy - p.B*2);
+  //右のりしろ下辺
+  px = qx;
+  py = qy;
+  qx = x;
+  DrawLine(px, py, qx, qy, 2);
+  //左辺
+  px = qx;
+  py = qy;
+  qy = py - p.B*2;
+  DrawLine(px, py, qx, qy);
+  //右のりしろと本体の区切り
+  px = x + p.M1;
+  DrawLine(px, y, px, y+p.B*2, 1);
+
+  FillPolyWithPattern(...fillpts);
+
+  // スカート部と接続するのりしろ
+  px = x;
+  py = y + p.B*2;
+  fillpts = [px, py];
+  for (var i=0; i<4; i++) {
+    qx = px + tab;
+    qy = py + tab;
+    DrawLine(px, py, qx, qy);
+    fillpts.push(qx, qy);
+    px = qx;
+    py = qy;
+    qx = px + p.M1 / 4 - tab*2;
+    DrawLine(px, py, qx, qy);
+    fillpts.push(qx, qy);
+    px = qx;
+    py = qy;
+    qx = px + tab;
+    qy = py - tab;
+    DrawLine(px, py, qx, qy);
+    fillpts.push(qx, qy);
+    FillPolyWithPattern(...fillpts);
+    px = qx;
+    py = qy;
+
+  }
+
+  //半分に折る線
+  DrawLine(x, y+p.B, x+p.M1+tab, y+p.B, 1);
+
+  return y + p.B*2 + tab;
+}
+
+
+function DrawInstruction(x, y) {
+  DrawLine(x, y, x+200, y, 1);
+  DrawText("山折り", x+200, y-8);
+  y += 24;
+  DrawLine(x, y, x+200, y, 2);
+  DrawText("谷折り", x+200, y-8);
+  y += 16;
+  FillPolyWithPattern(x, y, x+200, y, x+200, y+16, x, y+16);
+  DrawText("のりしろ", x+200, y);
+  
+}
 
 function GenerateMain(p) {
   //円の中心位置を求める
@@ -293,9 +449,10 @@ function GenerateMain(p) {
   cy += p.BC * 2;
 
   //スカート部の描画
+  var max_y = 0;//ベルト部の位置を決めるため
   for (var part=0; part<2; part++) {
     DrawTabForSticking(p, cx, cy);
-    
+
     var divnum = (part==0 ? n1 : n2);
     var part_theta = p.Theta * divnum / p.N;
     DrawArc( cx, cy, p.R, -Math.PI/2, -Math.PI/2 + part_theta  );
@@ -308,6 +465,8 @@ function GenerateMain(p) {
       var x2 = x1 + Math.cos(angle) * p.H;
       var y2 = y1 + Math.sin(angle) * p.H;
       DrawLine( x1, y1, x2, y2, (i==divnum) ? 0 : 2 );
+      max_y = Math.max(max_y, y1);
+      max_y = Math.max(max_y, y2);
       if (i < divnum) {
         var angle2 = angle + d_theta_bc;
         var x3 = cx + Math.cos(angle2) * p.R;
@@ -315,19 +474,19 @@ function GenerateMain(p) {
         var x4 = x3 + Math.cos(angle2) * p.H;
         var y4 = y3 + Math.sin(angle2) * p.H;
         DrawLine( x3, y3, x4, y4, 1 );
+        max_y = Math.max(max_y, y3);
+        max_y = Math.max(max_y, y4);
       }
     }
     // 部品の高さ+余白だけ、下にずらす
     cy += p.H + p.R * (1 - Math.cos(part_theta)) + p.BC;
   }
 
-/*
+  // ベルト部を描画
+  var belt_y = max_y + p.BC * 2;
+  var inst_y = DrawBelt(p, cx, belt_y) + p.BC * 4;
 
-  DrawLine(0,100, 400, 100, 1);
-  DrawText("山折り", 400, 90);
-  DrawLine(0,140, 400, 140, 2);
-  DrawText("谷折り", 400, 130);
-*/
+  DrawInstruction(p.BC, inst_y);
 }
 
 
@@ -337,13 +496,22 @@ function OnGenerateButton() {
     var p = GetParams();
     PrintDebug(p.toString());
 
-    ClearCanvas();
+    ClearCanvas(500, 200);
     ClearMinMax();
-    for (g_DrawMode=0; g_DrawMode<=1; g_DrawMode++) {
-      GenerateMain(p);
-    }
 
-  //  ConvertCanvasToImage();
+    g_DrawMode = 0;
+    GenerateMain(p);
+
+    //描画範囲が確定したのでCanvasサイズを設定する
+    console.log("BBox ", g_MaxX, g_MaxY);
+    //余白を追加
+    g_MaxX += p.BC*2;
+    g_MaxY += p.BC;
+    ClearCanvas(g_MaxX, g_MaxY);
+    g_DrawMode = 1;
+    GenerateMain(p);
+
+    ConvertCanvasToImage();
   }
   catch (e) {
     alert(e);
@@ -351,5 +519,5 @@ function OnGenerateButton() {
 }
 
 </script>
-  
+
 </body></html>
