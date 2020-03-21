@@ -373,7 +373,7 @@ function DrawBelt(p, x, y) {
   px = qx;
   py = qy;
   qx = x;
-  DrawLine(px, py, qx, qy, 2);
+  //DrawLine(px, py, qx, qy, 2);
   //左辺
   px = qx;
   py = qy;
@@ -381,7 +381,7 @@ function DrawBelt(p, x, y) {
   DrawLine(px, py, qx, qy);
   //右のりしろと本体の区切り
   px = x + p.L1;
-  DrawLine(px, y, px, y+p.B*2, 1);
+  //DrawLine(px, y, px, y+p.B*2, 1);
 
   FillPolyWithPattern(...fillpts);
 
