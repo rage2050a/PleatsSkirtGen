@@ -28,10 +28,11 @@ http://creativecommons.org/publicdomain/zero/1.0/deed.ja
 
 <h2>パラメータ</h2>
 <form id="theForm">
-  <!-- p>
-    <input type="radio" name="pleatsType" value="SawPleats" checked>車ヒダ
-    <input type="radio" name="pleatsType" value="BoxPleats">箱ヒダ
-  </p -->
+  <p>
+    <input type="radio" name="pleatsType" id="KnifePleatsRadio" value="KnifePleats" checked>車ヒダ
+    <input type="radio" name="pleatsType" id="FrontBoxPleatsRadio" value="FrontBoxPleats">前箱ヒダ
+    <input type="radio" name="pleatsType" id="InvertedPleatsRadio" value="InvertedPleats">箱ヒダ
+  </p>
   <p>
     <table>
       <tr>
@@ -70,6 +71,10 @@ http://creativecommons.org/publicdomain/zero/1.0/deed.ja
 
 <script>
 ///////////////////////////////////////////////////////////////////////////////
+var KnifePleats = "KnifePleats";
+var FrontBoxPleats = "FrontBoxPleats";
+var InvertedPleats = "InvertedPleats";
+
 function PrintDebug(s) {
   var theDebug = document.getElementById("theDebug");
   theDebug.textContent = s;
@@ -284,10 +289,20 @@ function GetFloat(id) {
   return ret;
 }
 
+function GetPleatsType() {
+  if (document.getElementById("KnifePleatsRadio").checked)
+     return KnifePleats;
+  if (document.getElementById("FrontBoxPleatsRadio").checked)
+     return FrontBoxPleats;
+  if (document.getElementById("InvertedPleatsRadio").checked)
+     return InvertedPleats;
+
+}
 
 /// パラメータを取得し、従属する値を計算
 function GetParams() {
   var ret = {};
+  ret.Type = GetPleatsType();
   ret.L1 = GetFloat("waistCirc");
   ret.L2 = GetFloat("bottomCirc");
   ret.H = GetFloat("skirtHeight");
@@ -304,7 +319,7 @@ function GetParams() {
   ret.R = (ret.M1 * ret.H) / (ret.M2 - ret.M1);
   ret.Theta = (ret.M2 - ret.M1) / ret.H;
   ret.toString = function() {
-    return "L1="+this.L1 +", L2="+this.L2 +", H="+this.H
+    return "Type="+this.Type +", L1="+this.L1 +", L2="+this.L2 +", H="+this.H
       + ", N="+this.N +", α="+this.Alpha +", B="+this.B
       + ", AB="+this.AB +", BC="+this.BC +", DE="+this.DE +", EF="+this.EF
       + ", M1="+this.M1 +", M2="+this.M2 +", R="+this.R +", θ="+this.Theta;
@@ -319,8 +334,9 @@ function DrawTabForSticking(p, cx, cy) {
   px = cx;
   py = cy-(p.R+p.H);
   fillpts.push(px, py);
-  //のりしろの幅は最大でもABまで
-  var tab = p.AB * 0.8;
+  //のりしろの幅は最大でも min(AB, H/2) まで
+  var tab = Math.min(p.AB, p.H/2) * 0.8;
+  console.log("tab=", tab);
   qx = px - tab;
   qy = py + tab;
   fillpts.push(qx, qy);
@@ -451,8 +467,15 @@ function GenerateMain(p) {
   cx += margin;
   cy += margin;
 
+  //前箱ヒダなら、途中で山折り・谷折りを逆転する。そのときのindexがこれ。
+  //前箱ヒダでなければ-1にして、indexに決して一致しないようにする。
+  var rev_index = (p.Type==FrontBoxPleats) ? Math.floor(n1/2) : -1;
+console.log("rev_index", rev_index);
+
   //スカート部の描画
   var max_y = 0;//ベルト部の印刷位置を決めるため
+  var index = 0;
+  var fold_two = 2, fold_one = 1;
   for (var part=0; part<2; part++) {
     DrawTabForSticking(p, cx, cy);
 
@@ -462,12 +485,16 @@ function GenerateMain(p) {
     DrawArc( cx, cy, p.R + p.H, -Math.PI/2, -Math.PI/2 + part_theta  );
 
     for (var i=0; i<=divnum; i++) {
+      if (index==rev_index) {
+        [fold_one, fold_two] = [fold_two, fold_one];
+      }
+
       var angle = -Math.PI/2 + (part_theta / divnum) * i;
       var x1 = cx + Math.cos(angle) * p.R;
       var y1 = cy + Math.sin(angle) * p.R;
       var x2 = x1 + Math.cos(angle) * p.H;
       var y2 = y1 + Math.sin(angle) * p.H;
-      DrawLine( x1, y1, x2, y2, (i==divnum) ? 0 : 2 );
+      DrawLine( x1, y1, x2, y2, (i==divnum) ? 0 : fold_two );
       max_y = Math.max(max_y, y1);
       max_y = Math.max(max_y, y2);
       if (i < divnum) {
@@ -476,7 +503,7 @@ function GenerateMain(p) {
         var y3 = cy + Math.sin(angle2) * p.R;
         var x4 = x3 + Math.cos(angle2) * p.H;
         var y4 = y3 + Math.sin(angle2) * p.H;
-        DrawLine( x3, y3, x4, y4, 1 );
+        DrawLine( x3, y3, x4, y4, fold_one );
         max_y = Math.max(max_y, y3);
         max_y = Math.max(max_y, y4);
         //腰まわりののりしろ
@@ -485,6 +512,7 @@ function GenerateMain(p) {
         var x6 = x1 + Math.cos(angle) * p.BC;
         var y6 = y1 + Math.sin(angle) * p.BC;
         FillPolyWithPattern(x3, y3, x5, y5, x6, y6, x1, y1);
+        index++;
       }
     }
     // 部品の高さ+余白だけ、下にずらす
