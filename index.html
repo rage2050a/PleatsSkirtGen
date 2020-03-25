@@ -75,20 +75,26 @@ var KnifePleats = "KnifePleats";
 var FrontBoxPleats = "FrontBoxPleats";
 var InvertedPleats = "InvertedPleats";
 
-function PrintDebug(s) {
+function PrintDebug(s) 
+{
   var theDebug = document.getElementById("theDebug");
   theDebug.textContent = s;
 }
 
-function ConvertCanvasToImage() {
+function ConvertCanvasToImage() 
+{
   var theCanvas = document.getElementById("theCanvas");
   var png = theCanvas.toDataURL();
-  document.getElementById("theImage").src = png;
+  var theImage = document.getElementById("theImage");
+  theImage.src = png;
+  theImage.width = theCanvas.width;
+  theImage.height = theCanvas.height;
   theCanvas.style = "visibility:hidden; width:0px; height:0px;";
 }
 
 ///角度を ±π の範囲に収める
-function NormalizeRadian(r) {
+function NormalizeRadian(r) 
+{
   var n2 = Math.trunc(r / (2*Math.PI));
   var q = r - n2 * (2*Math.PI);
   if (q > Math.PI) {
@@ -107,29 +113,34 @@ var g_DrawMode = 0;
 ///作図に必要な範囲。g_DrawMode=0で描画関数を呼ぶたびに更新される。
 var g_MinX, g_MinY, g_MaxX, g_MaxY;
 
-function ClearMinMax() {
+function ClearMinMax() 
+{
   g_MinX = g_MinY = 9999;
   g_MaxX = g_MaxY = -9999;
 }
 
-function DumpMinMax() {
+function DumpMinMax() 
+{
   console.log(g_MinX, g_MinY, g_MaxX, g_MaxY);
 }
 
 /// 点(x,y) で作図範囲 g_Min[XY], g_Max[XY] を更新
-function AddToMinMax(x, y) {
+function AddToMinMax(x, y) 
+{
     g_MinX = Math.min(g_MinX, x);
     g_MinY = Math.min(g_MinY, y);
     g_MaxX = Math.max(g_MaxX, x);
     g_MaxY = Math.max(g_MaxY, y);
 }
 
-function AddToMinMaxRect(x, y, w, h) {
+function AddToMinMaxRect(x, y, w, h) 
+{
     AddToMinMax(x, y);
     AddToMinMax(x+w, y+h);
 }
 
-function FillRect(x, y, w, h, style) {
+function FillRect(x, y, w, h, style) 
+{
   if (g_DrawMode==0) {
     AddToMinMaxRect(x, y, w, h);
   }
@@ -142,14 +153,16 @@ function FillRect(x, y, w, h, style) {
   }
 }
 
-function ClearCanvas(w, h) {
+function ClearCanvas(w, h) 
+{
   var theCanvas = document.getElementById("theCanvas");
   theCanvas.width = w;
   theCanvas.height = h;
   FillRect(0, 0, w, h, "#ffffff");
 }
 
-function DrawText(s, x, y) {
+function DrawText(s, x, y) 
+{
   var PX = 16;
   if (g_DrawMode==0) {
     var w = s.length * PX;
@@ -166,7 +179,8 @@ function DrawText(s, x, y) {
   }
 }
 
-function DrawArc(x, y, r, angle1, angle2, ccw) {
+function DrawArc(x, y, r, angle1, angle2, ccw) 
+{
   if (g_DrawMode==0) {
     //角度を少しずつ動かしながら位置を求める
     var a1 = NormalizeRadian(angle1);
@@ -202,7 +216,8 @@ function DrawArc(x, y, r, angle1, angle2, ccw) {
 }
 
 /// @param dash 0=実線, 1=山折り, 2=谷折り
-function DrawLine(x1, y1, x2, y2, dash) {
+function DrawLine(x1, y1, x2, y2, dash) 
+{
   if (g_DrawMode==0) {
     AddToMinMax(x1, y1);
     AddToMinMax(x2, y2);
@@ -216,11 +231,11 @@ function DrawLine(x1, y1, x2, y2, dash) {
     default:
       context.setLineDash([]);
       break;
-    case 1:
-      context.setLineDash([12, 4, 4, 4, 4, 4]);
+    case 1://山折 ─・・─・・
+      context.setLineDash([12, 2, 2, 2, 2, 2]);
       break;
-    case 2:
-      context.setLineDash([8, 8]);
+    case 2://谷折り - - - - 
+      context.setLineDash([6, 4]);
       break;
 
     }
@@ -233,9 +248,45 @@ function DrawLine(x1, y1, x2, y2, dash) {
   }
 }
 
+var g_LinePos = {x:0, y:0};
+
+function GetLinePos()
+{
+  return g_LinePos;
+}
+
+function MoveTo(x, y)
+{
+  g_LinePos.x = x;
+  g_LinePos.y = y;
+}
+
+function MoveToDelta(dx, dy)
+{
+  g_LinePos.x += dx;
+  g_LinePos.y += dy;
+}
+
+function LineTo(x, y, dash)
+{
+  DrawLine(g_LinePos.x, g_LinePos.y, x, y, dash);
+  MoveTo(x, y);
+}
+
+function LineToDelta(dx, dy, dash)
+{
+  var dst_x = g_LinePos.x + dx;
+  var dst_y = g_LinePos.y + dy;
+  DrawLine(g_LinePos.x, g_LinePos.y, dst_x, dst_y, dash);
+  MoveTo(dst_x, dst_y);
+}
+
+
+
 
 /// のりしろ描画用。引数は x1, y1, x2, y2, ...
-function FillPolyWithPattern() {
+function FillPolyWithPattern() 
+{
   if (arguments.length % 2 != 0) 
     throw "FillPolyWithPattern args must be even";
   
@@ -246,16 +297,22 @@ function FillPolyWithPattern() {
   }
   else {
     var ptncan = document.createElement("canvas");
-    ptncan.width = 8;
-    ptncan.height = 8;
+    ptncan.width = 32;
+    ptncan.height = 32;
     var ptnctx = ptncan.getContext("2d");
     ptnctx.strokeStyle = "#888888";
     ptnctx.lineWidth = 1;
     ptnctx.beginPath();
-    for (var i=-ptncan.width; i<ptncan.width; i+=2) {
-      ptnctx.moveTo(i, 0);
-      ptnctx.lineTo(i+ptncan.width, ptncan.height);
+    for (var i=0; i<ptncan.height; i+=2) {
+      //ピクセルの中間地点から描画するからぼやける?
+      //+0.5すればぼやけるのを防げる?
+      ptnctx.moveTo(0, i+.5);
+      ptnctx.lineTo(ptncan.width, i+.5);
     }
+//    for (var i=-ptncan.width; i<ptncan.width; i+=2) {
+//      ptnctx.moveTo(i, 0);
+//      ptnctx.lineTo(i+ptncan.width, ptncan.height);
+//    }
     ptnctx.stroke();
     ptnctx.closePath();
 
@@ -279,7 +336,8 @@ function FillPolyWithPattern() {
 //////////////////////////////////////////////////////////////////////////////
 
 /// id要素のvalueをfloatで返す。無理ならthrow
-function GetFloat(id) {
+function GetFloat(id) 
+{
   var str = document.getElementById(id).value;
   var ret = parseFloat(str);
   if (Number.isNaN(ret)) {
@@ -289,7 +347,8 @@ function GetFloat(id) {
   return ret;
 }
 
-function GetPleatsType() {
+function GetPleatsType() 
+{
   if (document.getElementById("KnifePleatsRadio").checked)
      return KnifePleats;
   if (document.getElementById("FrontBoxPleatsRadio").checked)
@@ -300,7 +359,8 @@ function GetPleatsType() {
 }
 
 /// パラメータを取得し、従属する値を計算
-function GetParams() {
+function GetParams() 
+{
   var ret = {};
   ret.Type = GetPleatsType();
   ret.L1 = GetFloat("waistCirc");
@@ -328,7 +388,8 @@ function GetParams() {
 }
 
 /// スカート部ののりしろを描画
-function DrawTabForSticking(p, cx, cy) {
+function DrawTabForSticking(p, cx, cy) 
+{
   var fillpts = [];//塗り用
   var px, py, qx, qy;
   px = cx;
@@ -360,46 +421,65 @@ function DrawTabForSticking(p, cx, cy) {
 
 /// ベルト部を描画 (長さL1, 幅Bの長方形)
 // 強度のために高さB*2にして折る。
-function DrawBelt(p, x, y) {
+function DrawBelt(p, x, y) 
+{
+  //アジャスターを模した長めの部分
+  var extend = p.B * 2;
   // スカート部と接着するためののりしろもつける。
   var tab = p.B;
 
   var fillpts = [];
   var px, py, qx, qy;
-  //上辺
-  px = x;
-  py = y;
-  qx = px + p.L1 + tab;
-  qy = py;
-  DrawLine(px, py, qx, qy);
-  //右辺
-  px = qx;
-  py = qy;
-  qy = py + p.B*2;
-  DrawLine(px, py, qx, qy);
-  fillpts.push(px, py, qx, qy);
-  //右のりしろ端
-  px = qx;
-  py = qy;
-  qx = px - tab;
-  DrawLine(px, py, qx, qy);
-  fillpts.push(qx, qy);
-  fillpts.push(qx, qy - p.B*2);
-  //右のりしろ下辺
-  px = qx;
-  py = qy;
-  qx = x;
-  //DrawLine(px, py, qx, qy, 2);
-  //左辺
-  px = qx;
-  py = qy;
-  qy = py - p.B*2;
-  DrawLine(px, py, qx, qy);
-  //右のりしろと本体の区切り
-  px = x + p.L1;
-  //DrawLine(px, y, px, y+p.B*2, 1);
+  
+  MoveTo(x, y);
+  LineToDelta(p.L1+extend, 0);
+  LineToDelta(0, p.B*2);
+  LineToDelta(-extend, 0);
+  MoveToDelta(-p.L1, 0);
+  LineToDelta(0, -p.B*2);
 
+  //ベルトの左下端と、アジャスタ部右上端を、接着
+  fillpts = [x+p.L1, y];
+  fillpts.push( x+p.L1+extend, y );
+  fillpts.push( x+p.L1+extend, y+p.B );
+  fillpts.push( x+p.L1, y+p.B );
   FillPolyWithPattern(...fillpts);
+  
+  //上辺
+//  px = x;
+//  py = y;
+//  qx = px + p.L1 + tab;
+//  qy = py;
+//  DrawLine(px, py, qx, qy);
+  //右辺
+//  px = qx;
+//  py = qy;
+//  qy = py + p.B*2;
+//  DrawLine(px, py, qx, qy);
+//  fillpts.push(px, py, qx, qy);
+  //右のりしろ端
+//  px = qx;
+//  py = qy;
+//  qx = px - tab;
+//  DrawLine(px, py, qx, qy);
+//  fillpts.push(qx, qy);
+//  fillpts.push(qx, qy - p.B*2);
+  //右のりしろ下辺
+//  px = qx;
+//  py = qy;
+//  qx = x;
+//  //DrawLine(px, py, qx, qy, 2);
+  //左辺
+
+//  px = qx;
+//  py = qy;
+//  qy = py - p.B*2;
+//  DrawLine(px, py, qx, qy);
+//  //右のりしろと本体の区切り
+//  px = x + p.L1;
+//  //DrawLine(px, y, px, y+p.B*2, 1);
+
+  //FillPolyWithPattern(...fillpts);
 
   // スカート部と接続するのりしろ
   px = x;
@@ -428,14 +508,15 @@ function DrawBelt(p, x, y) {
   }
 
   //半分に折る線
-  DrawLine(x, y+p.B, x+p.L1+tab, y+p.B, 1);
+  DrawLine(x, y+p.B, x+p.L1+extend, y+p.B, 1);
 
   return y + p.B*2 + tab;
 }
 
 
 /// 説明
-function DrawInstruction(x, y) {
+function DrawInstruction(x, y) 
+{
   DrawLine(x, y, x+200, y, 1);
   DrawText("山折り", x+200, y-8);
   y += 24;
@@ -448,7 +529,8 @@ function DrawInstruction(x, y) {
 
 
 /// 主役
-function GenerateMain(p) {
+function GenerateMain(p) 
+{
   //円の中心位置を求める
   var cx = 0;
   var cy = p.H + p.R;
@@ -469,8 +551,17 @@ function GenerateMain(p) {
 
   //前箱ヒダなら、途中で山折り・谷折りを逆転する。そのときのindexがこれ。
   //前箱ヒダでなければ-1にして、indexに決して一致しないようにする。
-  var rev_index = (p.Type==FrontBoxPleats) ? Math.floor(n1/2) : -1;
-console.log("rev_index", rev_index);
+  var rev_indices = [];
+  if (p.Type==FrontBoxPleats) {
+    //のりしろを避けるために少し進んだインデクスで逆転する
+    rev_indices.push(Math.floor(n1/2));
+    rev_indices.push(p.N - rev_indices[0]);
+  }
+  else {
+    //車ひだの場合、逆転しない。
+    rev_indices = [-1];
+  }
+console.log("rev_indices", rev_indices);
 
   //スカート部の描画
   var max_y = 0;//ベルト部の印刷位置を決めるため
@@ -485,7 +576,7 @@ console.log("rev_index", rev_index);
     DrawArc( cx, cy, p.R + p.H, -Math.PI/2, -Math.PI/2 + part_theta  );
 
     for (var i=0; i<=divnum; i++) {
-      if (index==rev_index) {
+      if (rev_indices.indexOf(index) != -1) {
         [fold_one, fold_two] = [fold_two, fold_one];
       }
 
@@ -527,7 +618,8 @@ console.log("rev_index", rev_index);
 }
 
 
-function OnGenerateButton() {
+function OnGenerateButton() 
+{
   PrintDebug("Generate");
   try {
     var p = GetParams();
