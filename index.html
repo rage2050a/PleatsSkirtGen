@@ -370,14 +370,28 @@ function GetParams()
   ret.Alpha = GetFloat("pleatsRatio");
   ret.B = GetFloat("beltHeight");
   //入力をもとに、従属する値を求める
-  ret.AB = ret.L1 / ( (1 - ret.Alpha) * ret.N );
-  ret.BC = ret.Alpha * ret.AB;
-  ret.DE = ret.L2 / ( (1 - ret.Alpha) * ret.N );
-  ret.EF = ret.Alpha * ret.DE;
-  ret.M1 = ret.N * (ret.AB + ret.BC);
-  ret.M2 = ret.N * (ret.DE + ret.EF);
-  ret.R = (ret.M1 * ret.H) / (ret.M2 - ret.M1);
-  ret.Theta = (ret.M2 - ret.M1) / ret.H;
+  if (ret.Type==KnifePleats || ret.Type==FrontBoxPleats) {
+    //車ひだ・前箱ひだ用の値
+    ret.AB = ret.L1 / ( (1 - ret.Alpha) * ret.N );
+    ret.BC = ret.Alpha * ret.AB;
+    ret.DE = ret.L2 / ( (1 - ret.Alpha) * ret.N );
+    ret.EF = ret.Alpha * ret.DE;
+    ret.M1 = ret.N * (ret.AB + ret.BC);
+    ret.M2 = ret.N * (ret.DE + ret.EF);
+    ret.R = (ret.M1 * ret.H) / (ret.M2 - ret.M1);
+    ret.Theta = (ret.M2 - ret.M1) / ret.H;
+  }
+  else if (ret.Type==InvertedPleats) {
+    //ボックスプリーツ用
+    ret.DE = ret.L2 / ret.N;
+    ret.AB = ret.Alpha * ret.DE;
+    ret.BC = ret.AB * 2;
+    ret.EF = 0;
+    ret.M1 = ret.L1;
+    ret.M2 = (4 * ret.Alpha + 1 ) * ret.L2;
+    ret.R = (ret.M1 * ret.H) / (ret.M2 - ret.M1);
+    ret.Theta = (ret.M2 - ret.M1) / ret.H;
+  }
   ret.toString = function() {
     return "Type="+this.Type +", L1="+this.L1 +", L2="+this.L2 +", H="+this.H
       + ", N="+this.N +", α="+this.Alpha +", B="+this.B
@@ -445,41 +459,6 @@ function DrawBelt(p, x, y)
   fillpts.push( x+p.L1, y+p.B );
   FillPolyWithPattern(...fillpts);
   
-  //上辺
-//  px = x;
-//  py = y;
-//  qx = px + p.L1 + tab;
-//  qy = py;
-//  DrawLine(px, py, qx, qy);
-  //右辺
-//  px = qx;
-//  py = qy;
-//  qy = py + p.B*2;
-//  DrawLine(px, py, qx, qy);
-//  fillpts.push(px, py, qx, qy);
-  //右のりしろ端
-//  px = qx;
-//  py = qy;
-//  qx = px - tab;
-//  DrawLine(px, py, qx, qy);
-//  fillpts.push(qx, qy);
-//  fillpts.push(qx, qy - p.B*2);
-  //右のりしろ下辺
-//  px = qx;
-//  py = qy;
-//  qx = x;
-//  //DrawLine(px, py, qx, qy, 2);
-  //左辺
-
-//  px = qx;
-//  py = qy;
-//  qy = py - p.B*2;
-//  DrawLine(px, py, qx, qy);
-//  //右のりしろと本体の区切り
-//  px = x + p.L1;
-//  //DrawLine(px, y, px, y+p.B*2, 1);
-
-  //FillPolyWithPattern(...fillpts);
 
   // スカート部と接続するのりしろ
   px = x;
@@ -528,8 +507,8 @@ function DrawInstruction(x, y)
 }
 
 
-/// 主役
-function GenerateMain(p) 
+/// 車ひだ・前箱ひだ
+function GenerateMain1(p) 
 {
   //円の中心位置を求める
   var cx = 0;
@@ -617,6 +596,103 @@ console.log("rev_indices", rev_indices);
   DrawInstruction(margin, inst_y);
 }
 
+ 
+///ボックス
+function GenerateMainInv(p)
+{
+  //円の中心位置を求める
+  var ox = 0;
+  var oy = p.H + p.R;
+  console.log("ox="+ox +", oy="+oy);
+  //DE, AB に対する角度
+  var d_theta_de = p.Theta / (p.N * (1 + 4 * p.Alpha) );
+  var d_theta_ab = p.Alpha * d_theta_de;
+
+  //用紙節約のため、スカート部を2つの部品で構成する。
+  //それぞれの部品のプリーツ数
+  var n1 = Math.floor( p.N / 2 );
+  var n2 = p.N - n1;
+
+  //のりしろ+余白のぶん、円の中心を右下にずらす
+  var margin = p.AB * 2;
+  ox += margin;
+  oy += margin;
+
+  //スカート部の描画
+  var max_y = 0;//ベルト部の印刷位置を決めるため
+  for (var part=0; part<2; part++) {
+    DrawTabForSticking(p, ox, oy);
+
+    var divnum = (part==0 ? n1 : n2);
+    var part_theta = p.Theta * divnum / p.N;
+    DrawArc( ox, oy, p.R, -Math.PI/2, -Math.PI/2 + part_theta );
+    DrawArc( ox, oy, p.R + p.H, -Math.PI/2, -Math.PI/2 + part_theta );
+
+    var before_max_y = max_y;
+    for (var i=0; i<=divnum; i++) {
+      var angle = -Math.PI/2 + (part_theta / divnum) * i;
+      if (i < divnum) {
+        // K
+        var kx = ox + Math.cos(angle + d_theta_ab*2) * p.R;
+        var ky = oy + Math.sin(angle + d_theta_ab*2) * p.R;
+        max_y = Math.max(max_y, ky);
+        // A
+        var ax = ox + Math.cos(angle) * (p.R + p.H);
+        var ay = oy + Math.sin(angle) * (p.R + p.H);
+        DrawLine( kx, ky, ax, ay, 1 );
+        max_y = Math.max(max_y, ay);
+        // B
+        var bx = ox + Math.cos(angle + d_theta_ab) * (p.R + p.H);
+        var by = oy + Math.sin(angle + d_theta_ab) * (p.R + p.H);
+        DrawLine( kx, ky, bx, by, 2 );
+        max_y = Math.max(max_y, by);
+        // C
+        var cx = ox + Math.cos(angle + d_theta_ab*3) * (p.R + p.H);
+        var cy = oy + Math.sin(angle + d_theta_ab*3) * (p.R + p.H);
+        DrawLine( kx, ky, cx, cy, 1 );
+        max_y = Math.max(max_y, cy);
+        // D
+        var dx = ox + Math.cos(angle + d_theta_ab*4) * (p.R + p.H);
+        var dy = oy + Math.sin(angle + d_theta_ab*4) * (p.R + p.H);
+        DrawLine( kx, ky, dx, dy, 2 );
+        max_y = Math.max(max_y, dy);
+      }
+      else { //i==divnum: 最後
+        // K
+        var kx = ox + Math.cos(angle) * p.R;
+        var ky = oy + Math.sin(angle) * p.R;
+        max_y = Math.max(max_y, ky);
+        var ax = ox + Math.cos(angle) * (p.R + p.H);
+        var ay = oy + Math.sin(angle) * (p.R + p.H);
+        DrawLine( kx, ky, ax, ay, 0 );
+        max_y = Math.max(max_y, ay);
+      }
+//      }
+    }
+    // 部品の高さ+余白だけ、下にずらす
+    oy += (max_y - before_max_y); //p.H + p.R * (1 - Math.cos(part_theta)) + p.BC;
+  }
+
+  // ベルト部を描画
+  var belt_y = max_y + p.AB * 2;
+  var inst_y = (p.B>0 ? DrawBelt(p, ox, belt_y) : belt_y ) + p.AB * 4;
+
+  DrawInstruction(margin, inst_y);
+}
+
+function GenerateMain(p) 
+{
+  switch (p.Type)
+  {
+  default:
+  case KnifePleats: case FrontBoxPleats:
+    GenerateMain1(p);
+    break;
+  case InvertedPleats:
+    GenerateMainInv(p);
+    break;
+  }
+}
 
 function OnGenerateButton() 
 {
