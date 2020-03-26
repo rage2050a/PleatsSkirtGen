@@ -59,10 +59,19 @@ http://creativecommons.org/publicdomain/zero/1.0/deed.ja
         <td>ベルト幅</td>
         <td><input name="ベルト幅" type="number" id="beltHeight" min="0" max="9999" value="15"></td>
       </tr>
+      <tr>
+        <td>
+        </td>
+        <td>
+          <input type="button" name="generateButton" value="生成" onclick="OnGenerateButton()">
+        </td>
+        <td>
+          <input type="button" name="resetButton" value="初期化" onclick="OnResetButton()">
+        </td>
+      </tr>
     </table>
   </p>
   <p>
-    <input type="button" name="generateButton" value="生成" onclick="OnGenerateButton()">
   </p>
 </form>
 <div id="theDebug">debug</div>
@@ -411,7 +420,6 @@ function DrawTabForSticking(p, cx, cy)
   fillpts.push(px, py);
   //のりしろの幅は最大でも min(AB, H/2) まで
   var tab = Math.min(p.AB, p.H/2) * 0.8;
-  console.log("tab=", tab);
   qx = px - tab;
   qy = py + tab;
   fillpts.push(qx, qy);
@@ -513,7 +521,6 @@ function GenerateMain1(p)
   //円の中心位置を求める
   var cx = 0;
   var cy = p.H + p.R;
-  console.log("cx="+cx +", cy="+cy);
   //AB, BC に対する角度
   var d_theta_ab = p.Theta / (p.N * (1 + p.Alpha) );
   var d_theta_bc = p.Alpha * d_theta_ab;
@@ -540,7 +547,6 @@ function GenerateMain1(p)
     //車ひだの場合、逆転しない。
     rev_indices = [-1];
   }
-console.log("rev_indices", rev_indices);
 
   //スカート部の描画
   var max_y = 0;//ベルト部の印刷位置を決めるため
@@ -603,7 +609,6 @@ function GenerateMainInv(p)
   //円の中心位置を求める
   var ox = 0;
   var oy = p.H + p.R;
-  console.log("ox="+ox +", oy="+oy);
   //DE, AB に対する角度
   var d_theta_de = p.Theta / (p.N * (1 + 4 * p.Alpha) );
   var d_theta_ab = p.Alpha * d_theta_de;
@@ -625,7 +630,8 @@ function GenerateMainInv(p)
 
     var divnum = (part==0 ? n1 : n2);
     var part_theta = p.Theta * divnum / p.N;
-    DrawArc( ox, oy, p.R, -Math.PI/2, -Math.PI/2 + part_theta );
+    //別パーツののりしろを隠すように、ウエスト側だけ広げる
+    DrawArc( ox, oy, p.R, -Math.PI/2, -Math.PI/2 + part_theta + d_theta_ab*2 );
     DrawArc( ox, oy, p.R + p.H, -Math.PI/2, -Math.PI/2 + part_theta );
 
     var before_max_y = max_y;
@@ -649,28 +655,27 @@ function GenerateMainInv(p)
         // C
         var cx = ox + Math.cos(angle + d_theta_ab*3) * (p.R + p.H);
         var cy = oy + Math.sin(angle + d_theta_ab*3) * (p.R + p.H);
-        DrawLine( kx, ky, cx, cy, 1 );
+        DrawLine( kx, ky, cx, cy, 2 );
         max_y = Math.max(max_y, cy);
         // D
         var dx = ox + Math.cos(angle + d_theta_ab*4) * (p.R + p.H);
         var dy = oy + Math.sin(angle + d_theta_ab*4) * (p.R + p.H);
-        DrawLine( kx, ky, dx, dy, 2 );
+        DrawLine( kx, ky, dx, dy, 1 );
         max_y = Math.max(max_y, dy);
       }
       else { //i==divnum: 最後
-        // K
-        var kx = ox + Math.cos(angle) * p.R;
-        var ky = oy + Math.sin(angle) * p.R;
+        // K: 別パーツののりしろを隠すように、ウエスト側だけ広げる
+        var kx = ox + Math.cos(angle + d_theta_ab*2) * p.R;
+        var ky = oy + Math.sin(angle + d_theta_ab*2) * p.R;
         max_y = Math.max(max_y, ky);
         var ax = ox + Math.cos(angle) * (p.R + p.H);
         var ay = oy + Math.sin(angle) * (p.R + p.H);
         DrawLine( kx, ky, ax, ay, 0 );
         max_y = Math.max(max_y, ay);
       }
-//      }
     }
-    // 部品の高さ+余白だけ、下にずらす
-    oy += (max_y - before_max_y); //p.H + p.R * (1 - Math.cos(part_theta)) + p.BC;
+    // 部品の高さだけ、下にずらす
+    oy += (max_y - before_max_y);
   }
 
   // ベルト部を描画
@@ -708,7 +713,6 @@ function OnGenerateButton()
     GenerateMain(p);
 
     //描画範囲が確定したのでCanvasサイズを設定する
-    console.log("BBox ", g_MaxX, g_MaxY);
     //余白を追加
     g_MaxX += p.AB*2;
     g_MaxY += p.AB;
@@ -720,6 +724,13 @@ function OnGenerateButton()
   }
   catch (e) {
     alert(e);
+  }
+}
+
+function OnResetButton()
+{
+  if (confirm("パラメータを初期値に戻しますか?")) {
+    document.getElementById("theForm").reset();
   }
 }
 
