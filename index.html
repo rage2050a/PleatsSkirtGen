@@ -60,6 +60,10 @@ http://creativecommons.org/publicdomain/zero/1.0/deed.ja
         <td><input name="ベルト幅" type="number" id="beltHeight" min="0" max="9999" value="15"></td>
       </tr>
       <tr>
+        <td>組み立て説明を</td>
+        <td><input type="checkbox" id="drawInstruction" checked="checked"><label for="drawInstruction">印刷する</label></td>
+      </tr>
+      <tr>
         <td>
         </td>
         <td>
@@ -378,6 +382,7 @@ function GetParams()
   ret.N = GetFloat("numPleats");
   ret.Alpha = GetFloat("pleatsRatio");
   ret.B = GetFloat("beltHeight");
+  ret.DrawInst = document.getElementById("drawInstruction").checked;
   //入力をもとに、従属する値を求める
   if (ret.Type==KnifePleats || ret.Type==FrontBoxPleats) {
     //車ひだ・前箱ひだ用の値
@@ -599,7 +604,7 @@ function GenerateMain1(p)
   var belt_y = max_y + p.BC * 2;
   var inst_y = (p.B>0 ? DrawBelt(p, cx, belt_y) : belt_y ) + p.BC * 4;
 
-  DrawInstruction(margin, inst_y);
+  if (p.DrawInst) DrawInstruction(margin, inst_y);
 }
 
  
@@ -682,7 +687,7 @@ function GenerateMainInv(p)
   var belt_y = max_y + p.AB * 2;
   var inst_y = (p.B>0 ? DrawBelt(p, ox, belt_y) : belt_y ) + p.AB * 4;
 
-  DrawInstruction(margin, inst_y);
+  if (p.DrawInst) DrawInstruction(margin, inst_y);
 }
 
 function GenerateMain(p) 
