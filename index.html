@@ -64,6 +64,10 @@ http://creativecommons.org/publicdomain/zero/1.0/deed.ja
         <td><input type="checkbox" id="drawInstruction" checked="checked"><label for="drawInstruction">印刷する</label></td>
       </tr>
       <tr>
+        <td>稜線強調</td>
+        <td><input type="checkbox" id="strongLine"><label for="strongLine">する</label></td>
+      </tr>
+      <tr>
         <td>
         </td>
         <td>
@@ -220,12 +224,16 @@ function DrawArc(x, y, r, angle1, angle2, ccw)
     var theCanvas = document.getElementById("theCanvas");
     var context = theCanvas.getContext("2d");
     context.strokeStyle = "black";
-    context.lineWidth = 1;
+    context.lineWidth = IsStrong() ? 2 : 1;
     context.beginPath();
     context.arc(x, y, r, angle1, angle2, ccw);
     context.stroke();
     context.closePath();
   }
+}
+    
+function IsStrong() {
+  return document.getElementById("strongLine").checked;
 }
 
 /// @param dash 0=実線, 1=山折り, 2=谷折り
@@ -239,18 +247,23 @@ function DrawLine(x1, y1, x2, y2, dash)
     var theCanvas = document.getElementById("theCanvas");
     var context = theCanvas.getContext("2d");
     context.strokeStyle = "black";
-    context.lineWidth = 1;
-    switch (dash) {
-    default:
+    if (IsStrong()) {
+      context.lineWidth = 2;
       context.setLineDash([]);
-      break;
-    case 1://山折 ─・・─・・
-      context.setLineDash([12, 2, 2, 2, 2, 2]);
-      break;
-    case 2://谷折り - - - - 
-      context.setLineDash([6, 4]);
-      break;
-
+    }
+    else {//通常時
+      context.lineWidth = 1;
+      switch (dash) {
+      default:
+        context.setLineDash([]);
+        break;
+      case 1://山折 ─・・─・・
+        context.setLineDash([12, 2, 2, 2, 2, 2]);
+        break;
+      case 2://谷折り - - - - 
+        context.setLineDash([6, 4]);
+        break;
+      }
     }
     context.beginPath();
     context.moveTo(x1, y1);
@@ -604,7 +617,7 @@ function GenerateMain1(p)
   var belt_y = max_y + p.BC * 2;
   var inst_y = (p.B>0 ? DrawBelt(p, cx, belt_y) : belt_y ) + p.BC * 4;
 
-  if (p.DrawInst) DrawInstruction(margin, inst_y);
+  if (p.DrawInst && !IsStrong()) DrawInstruction(margin, inst_y);
 }
 
  
@@ -647,6 +660,10 @@ function GenerateMainInv(p)
         var kx = ox + Math.cos(angle + d_theta_ab*2) * p.R;
         var ky = oy + Math.sin(angle + d_theta_ab*2) * p.R;
         max_y = Math.max(max_y, ky);
+        //最初だけ、のりしろ拡張部
+        if (i==0) {
+          FillPolyWithPattern(ox, oy-p.R, ox, oy-p.R-p.H, kx, ky);
+        }
         // A
         var ax = ox + Math.cos(angle) * (p.R + p.H);
         var ay = oy + Math.sin(angle) * (p.R + p.H);
@@ -687,7 +704,7 @@ function GenerateMainInv(p)
   var belt_y = max_y + p.AB * 2;
   var inst_y = (p.B>0 ? DrawBelt(p, ox, belt_y) : belt_y ) + p.AB * 4;
 
-  if (p.DrawInst) DrawInstruction(margin, inst_y);
+  if (p.DrawInst && !IsStrong()) DrawInstruction(margin, inst_y);
 }
 
 function GenerateMain(p) 
